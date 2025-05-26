@@ -54,28 +54,28 @@ __global__ void bubbleSortKernel(int *d_arr, int n) {
 }
 
 // Device function for merging arrays
-__device__ void merge(int *arr, int left, int mid, int right) {
-    const int MAX_SIZE = 1024;
-    int L[MAX_SIZE], R[MAX_SIZE];
+__device__ void merge(int *arr, int left, int mid, int right, int *temp) {
+    int i = left, j = mid + 1, k = left;
 
-    int n1 = mid - left + 1;
-    int n2 = right - mid;
-
-    for (int i = 0; i < n1; i++) L[i] = arr[left + i];
-    for (int j = 0; j < n2; j++) R[j] = arr[mid + 1 + j];
-
-    int i = 0, j = 0, k = left;
-
-    while (i < n1 && j < n2) {
-        if (L[i] <= R[j]) {
-            arr[k++] = L[i++];
+    while (i <= mid && j <= right) {
+        if (arr[i] <= arr[j]) {
+            temp[k++] = arr[i++];
         } else {
-            arr[k++] = R[j++];
+            temp[k++] = arr[j++];
         }
     }
 
-    while (i < n1) arr[k++] = L[i++];
-    while (j < n2) arr[k++] = R[j++];
+    while (i <= mid) {
+        temp[k++] = arr[i++];
+    }
+
+    while (j <= right) {
+        temp[k++] = arr[j++];
+    }
+
+    for (i = left; i <= right; i++) {
+        arr[i] = temp[i];
+    }
 }
 
 // Kernel for Merge Sort

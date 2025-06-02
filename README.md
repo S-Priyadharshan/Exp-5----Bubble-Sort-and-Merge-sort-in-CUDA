@@ -305,7 +305,7 @@ int main() {
 ```
 
 ## OUTPUT:
-SHOW YOUR OUTPUT HERE
+![image](https://github.com/user-attachments/assets/edec4172-ea95-4a42-9334-67818e75d9c5)
 
 ## RESULT:
-Thus, the program has been executed using CUDA to ________________.
+Thus, the program has been executed using CUDA to sort arrays using Merge sort and Bubble sort.

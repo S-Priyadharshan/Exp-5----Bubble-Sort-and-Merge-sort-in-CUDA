@@ -29,38 +29,40 @@ Discuss the differences in execution time and explain the limitations of Bubble 
 ## PROGRAM:
 
 ```c
-%%writefile sorting.cu
-#include 
-#include 
-#include 
-#include 
+#include <stdlib.h>
+#include <stdio.h>
+#include <cuda_runtime.h>
+#include <time.h>
+#include <algorithm>
+#include <chrono>
 
 // Kernel for Bubble Sort
-// write code for this
-__global__ void bubbleSortKernel(int *d_arr, int n) {
-    int tid = threadIdx.x + blockIdx.x * blockDim.x;
+__global__ void bubbleSortKernel(int* d_arr, int n) {
+    int temp;
+    int idx = threadIdx.x + blockIdx.x * blockDim.x;
 
-    // Each thread performs one complete pass
-    for (int i = 0; i < n - 1; i++) {
-        for (int j = tid; j < n - i - 1; j += blockDim.x * gridDim.x) {
-            if (d_arr[j] > d_arr[j + 1]) {
-                int temp = d_arr[j];
-                d_arr[j] = d_arr[j + 1];
-                d_arr[j + 1] = temp;
+    // Bubble sort logic, only one thread needed (idx==0)
+    if (idx == 0) {
+        for (int i = 0; i < n - 1; i++) {
+            for (int j = 0; j < n - i - 1; j++) {
+                if (d_arr[j] > d_arr[j + 1]) {
+                    temp = d_arr[j];
+                    d_arr[j] = d_arr[j + 1];
+                    d_arr[j + 1] = temp;
+                }
             }
         }
-        __syncthreads(); // Synchronize all threads between passes
     }
 }
 
-// Device function for merging arrays
-__device__ void merge(int *arr, int left, int mid, int right, int *temp) {
+__device__ void merge(int* arr, int left, int mid, int right, int* temp) {
     int i = left, j = mid + 1, k = left;
 
     while (i <= mid && j <= right) {
         if (arr[i] <= arr[j]) {
             temp[k++] = arr[i++];
-        } else {
+        }
+        else {
             temp[k++] = arr[j++];
         }
     }
@@ -79,14 +81,14 @@ __device__ void merge(int *arr, int left, int mid, int right, int *temp) {
 }
 
 // Kernel for Merge Sort
-__global__ void mergeSortKernel(int *d_arr, int *d_temp, int n) {
+__global__ void mergeSortKernel(int* d_arr, int* d_temp, int n) {
     for (int size = 1; size < n; size *= 2) {
         int left = 0;
         while (left + size < n) {
             int mid = left + size - 1;
             int right = min(left + 2 * size - 1, n - 1);
 
-            merge(d_arr, left, mid, right); // Call device merge
+            merge(d_arr, left, mid, right, d_temp); // Call device merge with temp
             left += 2 * size;
         }
         // Copy merged result back to d_arr
@@ -100,13 +102,13 @@ __global__ void mergeSortKernel(int *d_arr, int *d_temp, int n) {
 }
 
 // Host function for merging arrays
-void mergeHost(int *arr, int left, int mid, int right) {
+void mergeHost(int* arr, int left, int mid, int right) {
     int i, j, k;
     int n1 = mid - left + 1;
     int n2 = right - mid;
 
-    int *L = (int*)malloc(n1 * sizeof(int));
-    int *R = (int*)malloc(n2 * sizeof(int));
+    int* L = (int*)malloc(n1 * sizeof(int));
+    int* R = (int*)malloc(n2 * sizeof(int));
 
     for (i = 0; i < n1; i++)
         L[i] = arr[left + i];
@@ -121,7 +123,8 @@ void mergeHost(int *arr, int left, int mid, int right) {
         if (L[i] <= R[j]) {
             arr[k] = L[i];
             i++;
-        } else {
+        }
+        else {
             arr[k] = R[j];
             j++;
         }
@@ -145,8 +148,8 @@ void mergeHost(int *arr, int left, int mid, int right) {
 }
 
 // Bubble Sort on GPU
-void bubbleSort(int *arr, int n) {
-    int *d_arr;
+void bubbleSort(int* arr, int n) {
+    int* d_arr;
     cudaMalloc((void**)&d_arr, n * sizeof(int));
     cudaMemcpy(d_arr, arr, n * sizeof(int), cudaMemcpyHostToDevice);
 
@@ -156,8 +159,8 @@ void bubbleSort(int *arr, int n) {
     cudaEventCreate(&stop);
     cudaEventRecord(start);
 
-    bubbleSortKernel<<<1, n>>>(d_arr, n);
-    cudaDeviceSynchronize(); // Wait for GPU to finish
+    bubbleSortKernel << <1, n >> > (d_arr, n);
+    cudaDeviceSynchronize();
 
     cudaEventRecord(stop);
     cudaEventSynchronize(stop);
@@ -172,8 +175,8 @@ void bubbleSort(int *arr, int n) {
 }
 
 // Merge Sort on GPU
-void mergeSort(int *arr, int n) {
-    int *d_arr, *d_temp;
+void mergeSort(int* arr, int n) {
+    int* d_arr, * d_temp;
     cudaMalloc((void**)&d_arr, n * sizeof(int));
     cudaMalloc((void**)&d_temp, n * sizeof(int));
     cudaMemcpy(d_arr, arr, n * sizeof(int), cudaMemcpyHostToDevice);
@@ -184,8 +187,8 @@ void mergeSort(int *arr, int n) {
     cudaEventCreate(&stop);
     cudaEventRecord(start);
 
-    mergeSortKernel<<<1, 1>>>(d_arr, d_temp, n);
-    cudaDeviceSynchronize(); // Wait for GPU to finish
+    mergeSortKernel << <1, 1 >> > (d_arr, d_temp, n);
+    cudaDeviceSynchronize();
 
     cudaEventRecord(stop);
     cudaEventSynchronize(stop);
@@ -201,13 +204,12 @@ void mergeSort(int *arr, int n) {
 }
 
 // Bubble Sort on CPU
-void bubbleSortCPU(int *arr, int n) {
+void bubbleSortCPU(int* arr, int n) {
     auto start = std::chrono::high_resolution_clock::now();
 
     for (int i = 0; i < n - 1; i++) {
         for (int j = 0; j < n - i - 1; j++) {
             if (arr[j] > arr[j + 1]) {
-                // Swap
                 int temp = arr[j];
                 arr[j] = arr[j + 1];
                 arr[j + 1] = temp;
@@ -216,32 +218,32 @@ void bubbleSortCPU(int *arr, int n) {
     }
 
     auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration duration = end - start;
+    std::chrono::duration<double, std::milli> duration = end - start;
     printf("Bubble Sort (CPU) took %f milliseconds\n", duration.count());
 }
 
 // Merge Sort on CPU
-void mergeSortCPU(int *arr, int n) {
+void mergeSortCPU(int* arr, int n) {
     auto start = std::chrono::high_resolution_clock::now();
 
     for (int size = 1; size < n; size *= 2) {
         int left = 0;
         while (left + size < n) {
             int mid = left + size - 1;
-            int right = min(left + 2 * size - 1, n - 1);
+            int right = std::min(left + 2 * size - 1, n - 1);
 
-            mergeHost(arr, left, mid, right); // Call host merge
+            mergeHost(arr, left, mid, right);
             left += 2 * size;
         }
     }
 
     auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration duration = end - start;
+    std::chrono::duration<double, std::milli> duration = end - start;
     printf("Merge Sort (CPU) took %f milliseconds\n", duration.count());
 }
 
 // Print array
-void printArray(int *arr, int n) {
+void printArray(int* arr, int n) {
     for (int i = 0; i < n; i++)
         printf("%d ", arr[i]);
     printf("\n");
@@ -249,8 +251,8 @@ void printArray(int *arr, int n) {
 
 // Main function
 int main() {
-    int n = 10000; // Increase for larger datasets
-    int *arr = (int*)malloc(n * sizeof(int));
+    int n = 1000; // Reduced to 1000 for display and timing purposes
+    int* arr = (int*)malloc(n * sizeof(int));
 
     // Generating random array
     for (int i = 0; i < n; i++) {
